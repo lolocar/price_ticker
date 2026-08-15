@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Crypto Prices</title>
+<style>
+  /* ---- palette (roles, not raw hex, in the body) ---- */
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-1:         #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --muted:          #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --delta-up:       #006300;   /* success text on light */
+    --delta-down:     #d03b3b;   /* status: critical */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-1:         #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted:          #898781;
+      --gridline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --delta-up:       #0ca30c;
+      --delta-down:     #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-1:         #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted:          #898781;
+    --gridline:       #2c2c2a;
+    --border:         rgba(255,255,255,0.10);
+    --delta-up:       #0ca30c;
+    --delta-down:     #d03b3b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--page-1);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .banner {
+    width: 1920px;
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ---- status / countdown row ---- */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .status-bar .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--delta-up);
+    flex: none;
+  }
+  .status-bar .live-dot.error { background: var(--delta-down); }
+  .status-bar .countdown {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress-track {
+    height: 3px;
+    background: var(--gridline);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--text-secondary);
+    transform-origin: left;
+    animation: shrink linear forwards;
+  }
+  @keyframes shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+  /* ---- scrolling ticker ---- */
+  .ticker {
+    flex: 1;
+    overflow: hidden;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    /* fade edges so tiles don't pop in/out */
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+  }
+  .ticker-track {
+    display: flex;
+    width: max-content;
+    animation: scroll 30s linear infinite;
+  }
+  .ticker:hover .ticker-track { animation-play-state: paused; }
+  @keyframes scroll { to { transform: translateX(-50%); } }
+
+  .ticker-group { display: flex; align-items: stretch; }
+  .tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 22px;
+    border-right: 1px solid var(--gridline);
+    white-space: nowrap;
+  }
+  .tile .symbol {
+    font-size: 120px;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .tile .price {
+    font-size: 120px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .change {
+    font-size: 120px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tile .price.up,
+  .tile .change.up   { color: var(--delta-up); }
+  .tile .price.down,
+  .tile .change.down { color: var(--delta-down); }
+  .tile .price.flat,
+  .tile .change.flat { color: var(--muted); }
+  .tile .change .arrow { font-size: 72px; line-height: 1; }
+  .tile .placeholder {
+    color: var(--muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track { animation: none; }
+    .ticker { overflow-x: auto; }
+    .ticker-group + .ticker-group { display: none; }
+    .progress-fill { animation: none; width: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <div class="banner" role="region" aria-label="Live cryptocurrency prices, refreshed every 30 seconds">
+    <div class="status-bar">
+      <span class="live-dot" id="liveDot"></span>
+      <span id="statusText">Loading prices…</span>
+      <span class="countdown" id="countdown" aria-hidden="true">next refresh in 30s</span>
+    </div>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="ticker">
+      <div class="ticker-track" id="track">
+        <!-- two identical groups for a seamless loop -->
+        <div class="ticker-group" id="group1"></div>
+        <div class="ticker-group" id="group2" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const API_URL = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,chia,monero,solana,aave&vs_currencies=usd&include_24hr_change=true";
+  const REFRESH_SECONDS = 30;
+
+  const COINS = [
+    { id: "bitcoin", symbol: "BTC" },
+    { id: "ethereum", symbol: "ETH" },
+    { id: "chia", symbol: "XCH" },
+    { id: "monero", symbol: "XMR" },
+    { id: "solana", symbol: "SOL" },
+    { id: "aave", symbol: "AAVE" },
+  ];
+
+  const group1 = document.getElementById("group1");
+  const group2 = document.getElementById("group2");
+  const statusText = document.getElementById("statusText");
+  const liveDot = document.getElementById("liveDot");
+  const countdownEl = document.getElementById("countdown");
+  const progressFill = document.getElementById("progressFill");
+
+  let secondsLeft = REFRESH_SECONDS;
+
+  function formatPrice(n) {
+    if (!Number.isFinite(n)) return "—";
+    const opts = n >= 1
+      ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+      : { minimumFractionDigits: 2, maximumFractionDigits: 4 };
+    return "$" + n.toLocaleString("en-US", opts);
+  }
+
+  function buildTiles(data) {
+    const frag = document.createDocumentFragment();
+    for (const coin of COINS) {
+      const row = data[coin.id];
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      let label = coin.symbol;
+      if (row) {
+        label += " " + formatPrice(row.usd);
+        if (row.usd_24h_change != null) {
+          label += ", 24h " + (row.usd_24h_change >= 0 ? "up " : "down ") +
+            Math.abs(row.usd_24h_change).toFixed(2) + " percent";
+        }
+      }
+      tile.setAttribute("aria-label", label);
+
+      const sym = document.createElement("span");
+      sym.className = "symbol";
+      sym.textContent = coin.symbol;
+      tile.appendChild(sym);
+
+      if (row) {
+        const chg = row.usd_24h_change;
+
+        const price = document.createElement("span");
+        price.className = "price " + (chg > 0 ? "up" : chg < 0 ? "down" : "flat");
+        price.textContent = formatPrice(row.usd);
+        tile.appendChild(price);
+        const change = document.createElement("span");
+        change.className = "change " + (chg > 0 ? "up" : chg < 0 ? "down" : "flat");
+        const arrow = document.createElement("span");
+        arrow.className = "arrow";
+        arrow.textContent = chg > 0 ? "▲" : chg < 0 ? "▼" : "•";
+        change.appendChild(arrow);
+        change.appendChild(document.createTextNode(
+          chg == null ? "—%" : chg.toFixed(2) + "%"));
+        tile.appendChild(change);
+      } else {
+        const ph = document.createElement("span");
+        ph.className = "placeholder";
+        ph.textContent = "—";
+        tile.appendChild(ph);
+      }
+      frag.appendChild(tile);
+    }
+    return frag;
+  }
+
+  function render(data) {
+    group1.replaceChildren(buildTiles(data));
+    group2.replaceChildren(buildTiles(data));
+  }
+
+  function setProgress(seconds) {
+    progressFill.style.animation = "none";
+    void progressFill.offsetWidth; // restart the animation
+    progressFill.style.animation = `shrink ${seconds}s linear forwards`;
+    countdownEl.textContent = "next refresh in " + seconds + "s";
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch(API_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      render(data);
+      const now = new Date();
+      statusText.textContent = "Live · updated " +
+        now.toLocaleTimeString("en-US", { hour12: false });
+      liveDot.classList.remove("error");
+    } catch (err) {
+      statusText.textContent = "Connection problem — retrying in " +
+        Math.max(secondsLeft, 1) + "s";
+      liveDot.classList.add("error");
+    }
+    setProgress(REFRESH_SECONDS);
+    secondsLeft = REFRESH_SECONDS;
+  }
+
+  // 1 Hz countdown tick
+  setInterval(() => {
+    secondsLeft = Math.max(0, secondsLeft - 1);
+    countdownEl.textContent = "next refresh in " + secondsLeft + "s";
+  }, 1000);
+
+  refresh();
+  setInterval(refresh, REFRESH_SECONDS * 1000);
+})();
+</script>
+</body>
+</html>
