@@ -7,22 +7,22 @@
 <style>
   /* ---- palette (roles, not raw hex, in the body) ---- */
   .viz-root {
-    color-scheme: light;
-    --surface-1:      #fcfcfb;
-    --page-1:         #f9f9f7;
-    --text-primary:   #0b0b0b;
-    --text-secondary: #52514e;
+    color-scheme: dark;
+    --surface-1:      #808080;
+    --page-1:         #000000;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
     --muted:          #898781;
-    --gridline:       #e1e0d9;
-    --border:         rgba(11,11,11,0.10);
-    --delta-up:       #006300;   /* success text on light */
+    --gridline:       #a0a0a0;
+    --border:         rgba(255,255,255,0.10);
+    --delta-up:       #4ade80;   /* success text on dark */
     --delta-down:     #d03b3b;   /* status: critical */
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) .viz-root {
       color-scheme: dark;
-      --surface-1:      #1a1a19;
-      --page-1:         #0d0d0d;
+      --surface-1:      #282828;
+      --page-1:         #000000;
       --text-primary:   #ffffff;
       --text-secondary: #c3c2b7;
       --muted:          #898781;
@@ -34,8 +34,8 @@
   }
   :root[data-theme="dark"] .viz-root {
     color-scheme: dark;
-    --surface-1:      #1a1a19;
-    --page-1:         #0d0d0d;
+    --surface-1:      #808080;
+    --page-1:         #000000;
     --text-primary:   #ffffff;
     --text-secondary: #c3c2b7;
     --muted:          #898781;
@@ -48,7 +48,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    background: var(--page-1);
+    background: #000;
     color: var(--text-primary);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     min-height: 100vh;
@@ -63,6 +63,8 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    background: var(--surface-1);
+    border-radius: 8px;
   }
 
   /* ---- status / countdown row ---- */
